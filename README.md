@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tipora
 
-## Getting Started
+**tipora.bet** — Finding the angle the market missed.
 
-First, run the development server:
+Data-driven football tipping platform with full P&L tracking, published tips, and accumulator suggestions across 30+ markets.
+
+## Stack
+
+- **Frontend**: Next.js 16 (App Router, Turbopack) + React 19 + Tailwind CSS 4
+- **Backend**: Next.js API Routes + Supabase Edge Functions
+- **Database**: Supabase (PostgreSQL + pg_cron + pg_net)
+- **Auth**: Supabase Auth
+- **Payments**: Stripe
+- **Email**: Resend
+- **Data**: API-Football (api-sports.io)
+- **Hosting**: Vercel
+
+## Quick start
 
 ```bash
+# Install dependencies
+npm install
+
+# Copy env template and fill in values
+cp .env.example .env.local
+
+# Run the dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Populate with seed data
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+With Supabase connected:
 
-## Learn More
+```bash
+# Run the schema migration in Supabase SQL Editor
+# (see supabase/migrations/001_initial_schema.sql)
 
-To learn more about Next.js, take a look at the following resources:
+# Insert mock teams, players, fixtures, stats, and tips
+npx tsx scripts/seed.ts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Trigger the pipeline (recalculates trends, generates tips, builds accas)
+npx tsx scripts/run-pipeline.ts
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Tests
 
-## Deploy on Vercel
+```bash
+npm test
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for the full Vercel + Supabase deployment guide.
+
+## Project structure
+
+```
+app/
+├── (routes)/           # Pages
+├── api/                # API routes
+│   ├── ingest/         # Data ingest from API-Football
+│   ├── trends/         # Trend calculation
+│   ├── tips/           # Tip generation + settlement
+│   ├── acca/           # Accumulator builder
+│   ├── auth/           # Sign in/up/out
+│   ├── stripe/         # Checkout + webhook
+│   ├── email/          # Scheduled digest emails
+│   └── admin/          # Admin-only actions
+lib/
+├── supabase/           # Supabase clients
+├── api-football/       # External data fetchers
+├── trends/             # Engine, confidence scoring, acca builder
+├── utils/              # Dates, odds, markets
+├── stripe/             # Stripe client
+└── email/              # Resend templates
+components/
+├── tips/               # TipCard, AccaCard, filters
+├── tracker/            # P&L dashboard, graph, stats
+└── ui/                 # Shared primitives
+supabase/
+├── migrations/         # SQL migrations (001, 002, 003, 004)
+└── functions/          # Edge Functions (future)
+scripts/
+├── seed.ts             # Mock data inserter
+└── run-pipeline.ts     # Manual pipeline trigger
+tests/                  # Vitest unit tests
+```
+
+## Pipeline
+
+Scheduled via `pg_cron`:
+
+- 02:00 — Recalculate trends
+- 06:00 — Ingest today's fixtures
+- 07:00 — Generate tips
+- 07:15 — Send digest email
+- 07:30 — Build game acca
+- Mon 08:00 — Build weekend acca
+- Every 2h — Ingest results, players, settle tips
+- 23:30 — Send settlement email
+
+## Coding conventions
+
+- TypeScript only, no `any`
+- All DB access through Supabase client (never raw SQL in components)
+- API-Football only called from cron jobs / Edge Functions
+- Server components by default; `"use client"` only for interactivity
+- Money stored as pence (integer); displayed as pounds
+- Dates stored as UTC; displayed in Europe/London
+- Odds stored as decimals, never fractions
+- Confidence scores are integers 0-100
+
+## License
+
+Private.

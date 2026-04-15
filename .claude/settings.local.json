@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src=no --import-alias \"@/*\" --use-npm)",
+      "Bash(cp -r temp-init/tipora/* .)",
+      "Bash(cp temp-init/tipora/.* .)",
+      "Bash(rm -rf temp-init)",
+      "Bash(cp temp-init/tipora/.gitignore .)",
+      "Bash(cp temp-init/tipora/.eslintrc.json .)",
+      "Bash(cp -r temp-init/tipora/. .)",
+      "Bash(cmd.exe /c \"rmdir /s /q temp-init\")",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(npm test:*)"
+    ]
+  }
+}
