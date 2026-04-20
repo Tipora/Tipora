@@ -2,6 +2,8 @@ import { createSafeServerClient } from '@/lib/supabase/safe-client';
 import { redirect } from 'next/navigation';
 import { TipCard } from '@/components/tips/TipCard';
 import { FormStrip } from '@/components/tips/FormStrip';
+import { StatGameLog } from '@/components/players/StatGameLog';
+import { PlayerStatChart } from '@/components/players/PlayerStatChart';
 import { MARKET_LABELS } from '@/lib/utils/markets';
 import type { Tip, StatType } from '@/types/tip';
 import type { Metadata } from 'next';
@@ -36,7 +38,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   // Last 10 match stats
   const { data: recentStats } = await supabase
     .from('player_match_stats')
-    .select('*, fixtures(kickoff_at, home_team_id, away_team_id, home_score, away_score, status)')
+    .select('*, fixtures(kickoff_at, home_team_id, away_team_id, home_score, away_score, status, home_team:teams!fixtures_home_team_id_fkey(name), away_team:teams!fixtures_away_team_id_fkey(name))')
     .eq('player_id', playerId)
     .order('created_at', { ascending: false })
     .limit(10);
@@ -118,6 +120,50 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
             <p className="text-[10px] uppercase text-zinc-500">{s.label}/gm</p>
           </div>
         ))}
+      </div>
+
+      {/* Shots & Fouls detail */}
+      <div className="mb-8">
+        <h2 className="mb-3 text-lg font-semibold text-white">Shots &amp; Fouls — Per Game</h2>
+        <PlayerStatChart
+          data={stats.map((s, i) => ({
+            game: `G${stats.length - i}`,
+            shots: s.shots,
+            sot: s.shots_on_target,
+            fouls: s.fouls_committed,
+          }))}
+        />
+      </div>
+
+      {/* Game log table */}
+      <div className="mb-8">
+        <h2 className="mb-3 text-lg font-semibold text-white">Game Log</h2>
+        <StatGameLog
+          playerName={player.name}
+          entries={stats.map(s => {
+            const f = s.fixtures;
+            const isHome = s.team_id === f?.home_team_id;
+            const homeName = (f?.home_team as Record<string, string>)?.name ?? 'Home';
+            const awayName = (f?.away_team as Record<string, string>)?.name ?? 'Away';
+            const opponent = isHome ? `vs ${awayName}` : `@ ${homeName}`;
+            const scored = isHome ? (f?.home_score ?? 0) : (f?.away_score ?? 0);
+            const conceded = isHome ? (f?.away_score ?? 0) : (f?.home_score ?? 0);
+            const resultStr = scored > conceded ? `W ${scored}-${conceded}` : scored < conceded ? `L ${scored}-${conceded}` : `D ${scored}-${conceded}`;
+            return {
+              date: f?.kickoff_at ? new Date(f.kickoff_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '',
+              opponent,
+              result: resultStr,
+              minutes: s.minutes_played,
+              shots: s.shots,
+              shotsOnTarget: s.shots_on_target,
+              foulsCommitted: s.fouls_committed,
+              foulsDrawn: s.fouls_drawn,
+              yellowCards: s.yellow_cards,
+              goals: s.goals,
+              assists: s.assists,
+            };
+          })}
+        />
       </div>
 
       {/* Active trends */}

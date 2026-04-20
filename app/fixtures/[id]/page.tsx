@@ -5,6 +5,10 @@ import { TeamForm } from '@/components/tips/TeamForm';
 import { DifficultyBadge } from '@/components/tips/DifficultyBadge';
 import { LiveScore } from '@/components/tips/LiveScore';
 import { getTeamForm } from '@/lib/fixtures/get-team-form';
+import { getH2HStats } from '@/lib/fixtures/get-h2h-stats';
+import { getSeasonStats } from '@/lib/fixtures/get-season-stats';
+import { H2HChart } from '@/components/fixtures/H2HChart';
+import { SeasonChart } from '@/components/fixtures/SeasonChart';
 import { getOpponentStrengthLabel } from '@/lib/trends/confidence';
 import { getFixtureContext } from '@/lib/trends/engine';
 import { formatKickoff } from '@/lib/utils/dates';
@@ -53,6 +57,12 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
   const [homeForm, awayForm] = await Promise.all([
     getTeamForm(fixture.home_team_id, supabase),
     getTeamForm(fixture.away_team_id, supabase),
+  ]);
+
+  const [h2hMatches, homeSeasonStats, awaySeasonStats] = await Promise.all([
+    getH2HStats(fixture.home_team_id, fixture.away_team_id, supabase, 10),
+    getSeasonStats(fixture.home_team_id, supabase),
+    getSeasonStats(fixture.away_team_id, supabase),
   ]);
 
   const context = await getFixtureContext(
@@ -120,6 +130,30 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
           cleanSheets={awayForm.cleanSheets}
           xgAvg={awayForm.xgAvg}
         />
+      </div>
+
+      {/* Head-to-Head */}
+      {h2hMatches.length > 0 && (
+        <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+          <h2 className="mb-4 text-lg font-semibold text-white">Head-to-Head</h2>
+          <H2HChart matches={h2hMatches} teamAName={homeName} teamBName={awayName} />
+        </div>
+      )}
+
+      {/* Season Stats */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-2">
+        {homeSeasonStats.length > 0 && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+            <h2 className="mb-4 text-lg font-semibold text-white">{homeName} — Season</h2>
+            <SeasonChart data={homeSeasonStats} teamName={homeName} />
+          </div>
+        )}
+        {awaySeasonStats.length > 0 && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+            <h2 className="mb-4 text-lg font-semibold text-white">{awayName} — Season</h2>
+            <SeasonChart data={awaySeasonStats} teamName={awayName} />
+          </div>
+        )}
       </div>
 
       <div className="mb-4">
