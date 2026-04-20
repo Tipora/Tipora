@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 const NAV_LINKS = [
   { href: '/fixtures', label: 'Fixtures' },
+  { href: '/leagues', label: 'Leagues' },
   { href: '/tips', label: 'Tips' },
   { href: '/tips/acca/game', label: 'Game Acca' },
   { href: '/tips/acca/weekend', label: 'Weekend Acca' },

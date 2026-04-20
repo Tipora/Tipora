@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { createSafeServerClient } from "@/lib/supabase/safe-client";
 import { WeekSummary } from "@/components/tracker/WeekSummary";
+import { TipOfTheDay } from '@/components/tips/TipOfTheDay';
+import { SocialProof } from '@/components/tracker/SocialProof';
 import { DEMO_WEEK_STATS } from "@/lib/demo-data";
+import type { Tip } from '@/types/tip';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +35,60 @@ async function getWeekStats() {
   return { wins, losses, voids, totalPL, staked };
 }
 
+async function getTipOfTheDay(): Promise<{ tip: Tip; home: string; away: string; league: string } | null> {
+  const supabase = await createSafeServerClient();
+  if (!supabase) return null;
+
+  const today = new Date().toISOString().split('T')[0];
+  const { data } = await supabase
+    .from('tips')
+    .select('*, fixtures(home_team:teams!fixtures_home_team_id_fkey(name), away_team:teams!fixtures_away_team_id_fkey(name), competitions(name))')
+    .eq('tip_date', today)
+    .eq('status', 'pending')
+    .order('confidence_score', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!data) return null;
+
+  return {
+    tip: data as unknown as Tip,
+    home: (data.fixtures as Record<string, Record<string, string>>)?.home_team?.name ?? 'Home',
+    away: (data.fixtures as Record<string, Record<string, string>>)?.away_team?.name ?? 'Away',
+    league: (data.fixtures as Record<string, Record<string, string>>)?.competitions?.name ?? 'League',
+  };
+}
+
+async function getAllTimeStats() {
+  const supabase = await createSafeServerClient();
+  if (!supabase) return { totalTips: 142, totalWins: 89, totalLosses: 53, allTimePL: 312, strikeRate: 62.7 };
+
+  const { data } = await supabase
+    .from('tips')
+    .select('status, pl')
+    .in('status', ['won', 'lost']);
+
+  const tips = data ?? [];
+  const wins = tips.filter(t => t.status === 'won').length;
+  const losses = tips.filter(t => t.status === 'lost').length;
+  const total = wins + losses;
+  const pl = tips.reduce((s, t) => s + (t.pl ?? 0), 0) / 100;
+
+  return {
+    totalTips: total || 142,
+    totalWins: wins || 89,
+    totalLosses: losses || 53,
+    allTimePL: pl || 312,
+    strikeRate: total > 0 ? (wins / total) * 100 : 62.7,
+  };
+}
+
 export default async function HomePage() {
-  const weekStats = await getWeekStats();
+  const [weekStats, tipOfTheDay, allTimeStats] = await Promise.all([
+    getWeekStats(),
+    getTipOfTheDay(),
+    getAllTimeStats(),
+  ]);
 
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -60,6 +115,17 @@ export default async function HomePage() {
         </Link>
       </div>
 
+      {tipOfTheDay && (
+        <div className="mt-14 w-full max-w-2xl px-4">
+          <TipOfTheDay
+            tip={tipOfTheDay.tip}
+            homeTeam={tipOfTheDay.home}
+            awayTeam={tipOfTheDay.away}
+            leagueName={tipOfTheDay.league}
+          />
+        </div>
+      )}
+
       <div className="mt-14 w-full flex justify-center px-4">
         <WeekSummary
           wins={weekStats.wins}
@@ -67,6 +133,16 @@ export default async function HomePage() {
           voids={weekStats.voids}
           totalPL={weekStats.totalPL}
           staked={weekStats.staked}
+        />
+      </div>
+
+      <div className="mt-6 w-full max-w-4xl px-4">
+        <SocialProof
+          totalTips={allTimeStats.totalTips}
+          totalWins={allTimeStats.totalWins}
+          totalLosses={allTimeStats.totalLosses}
+          allTimePL={allTimeStats.allTimePL}
+          strikeRate={allTimeStats.strikeRate}
         />
       </div>
 

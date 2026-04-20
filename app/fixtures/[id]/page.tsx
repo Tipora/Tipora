@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { TipCard } from '@/components/tips/TipCard';
 import { TeamForm } from '@/components/tips/TeamForm';
 import { DifficultyBadge } from '@/components/tips/DifficultyBadge';
+import { LiveScore } from '@/components/tips/LiveScore';
 import { getTeamForm } from '@/lib/fixtures/get-team-form';
 import { getOpponentStrengthLabel } from '@/lib/trends/confidence';
 import { getFixtureContext } from '@/lib/trends/engine';
@@ -77,9 +78,14 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
         <h1 className="text-3xl font-bold text-white">
           {homeName} <span className="text-zinc-600">vs</span> {awayName}
         </h1>
-        {fixture.status === 'FT' && (
-          <p className="mt-2 text-2xl font-bold text-emerald-400">{fixture.home_score} - {fixture.away_score}</p>
-        )}
+        <div className="mt-2">
+          <LiveScore
+            fixtureId={fixtureId}
+            initialHomeScore={fixture.home_score}
+            initialAwayScore={fixture.away_score}
+            initialStatus={fixture.status}
+          />
+        </div>
         <div className="mt-3 flex flex-wrap justify-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-zinc-500">{homeName} faces:</span>
