@@ -163,7 +163,15 @@ export interface FixtureContext {
   awayRestDays: number;
   homeXGAvg: number;
   awayXGAvg: number;
-  isCongested: boolean; // either team played <4 days ago
+  homeXGAAvg: number;
+  awayXGAAvg: number;
+  homeGoalsConceded: number;
+  awayGoalsConceded: number;
+  homeCleanSheetRate: number;
+  awayCleanSheetRate: number;
+  homeWinRate: number;
+  awayWinRate: number;
+  isCongested: boolean;
 }
 
 export async function getFixtureContext(
@@ -182,16 +190,32 @@ export async function getFixtureContext(
     awayRestDays: awayCtx.restDays,
     homeXGAvg: homeCtx.xgAvg,
     awayXGAvg: awayCtx.xgAvg,
+    homeXGAAvg: homeCtx.xgaAvg,
+    awayXGAAvg: awayCtx.xgaAvg,
+    homeGoalsConceded: homeCtx.goalsConceded,
+    awayGoalsConceded: awayCtx.goalsConceded,
+    homeCleanSheetRate: homeCtx.cleanSheetRate,
+    awayCleanSheetRate: awayCtx.cleanSheetRate,
+    homeWinRate: homeCtx.winRate,
+    awayWinRate: awayCtx.winRate,
     isCongested: homeCtx.restDays <= 3 || awayCtx.restDays <= 3,
   };
+}
+
+interface TeamContext {
+  restDays: number;
+  xgAvg: number;
+  xgaAvg: number;
+  goalsConceded: number;
+  cleanSheetRate: number;
+  winRate: number;
 }
 
 async function getTeamContext(
   teamId: number,
   beforeDate: string,
   supabase: SupabaseClient
-): Promise<{ restDays: number; xgAvg: number }> {
-  // Last fixture for this team before the upcoming match
+): Promise<TeamContext> {
   const { data: lastFixture } = await supabase
     .from('fixtures')
     .select('kickoff_at')
@@ -209,20 +233,50 @@ async function getTeamContext(
       )
     : 7;
 
-  // Average xG over last 5 matches
   const { data: xgStats } = await supabase
     .from('team_match_stats')
-    .select('xg')
+    .select('xg, xg_against')
     .eq('team_id', teamId)
-    .not('xg', 'is', null)
     .order('created_at', { ascending: false })
     .limit(5);
 
   const xgAvg = xgStats?.length
-    ? average(xgStats.map(s => s.xg ?? 0))
-    : 1.2; // fallback average
+    ? average(xgStats.map(s => Number(s.xg) || 0))
+    : 1.2;
+  const xgaAvg = xgStats?.length
+    ? average(xgStats.map(s => Number(s.xg_against) || 0))
+    : 1.2;
 
-  return { restDays, xgAvg };
+  const { data: recentFixtures } = await supabase
+    .from('fixtures')
+    .select('home_team_id, home_score, away_score')
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .eq('status', 'FT')
+    .order('kickoff_at', { ascending: false })
+    .limit(10);
+
+  let totalConceded = 0;
+  let cleanSheets = 0;
+  let wins = 0;
+  const count = recentFixtures?.length ?? 0;
+
+  for (const f of recentFixtures ?? []) {
+    const isHome = f.home_team_id === teamId;
+    const conceded = isHome ? (f.away_score ?? 0) : (f.home_score ?? 0);
+    const scored = isHome ? (f.home_score ?? 0) : (f.away_score ?? 0);
+    totalConceded += conceded;
+    if (conceded === 0) cleanSheets++;
+    if (scored > conceded) wins++;
+  }
+
+  return {
+    restDays,
+    xgAvg,
+    xgaAvg,
+    goalsConceded: count > 0 ? totalConceded / count : 1.2,
+    cleanSheetRate: count > 0 ? cleanSheets / count : 0.2,
+    winRate: count > 0 ? wins / count : 0.4,
+  };
 }
 
 // ---------------------------------------------------------------------------

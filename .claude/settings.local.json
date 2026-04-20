@@ -12,6 +12,9 @@
       "Bash(npm install:*)",
       "Bash(npx next:*)",
       "Bash(npm test:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\ikoni\\Tipora\\app\\fixtures"
     ]
   }
 }

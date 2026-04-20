@@ -189,30 +189,70 @@ function scoreContext(
   h2h: H2HResult | null,
   isHome: boolean
 ): number {
-  let score = 8; // baseline
+  let score = 6; // lower baseline to make room for opponent difficulty
 
-  // Rest days — well-rested teams perform to trend
+  // Rest days
   const ownRest = isHome ? ctx.homeRestDays : ctx.awayRestDays;
-  if (ownRest >= 7) score += 3;
+  if (ownRest >= 7) score += 2;
   else if (ownRest >= 5) score += 1;
-  else if (ownRest <= 2) score -= 3;
+  else if (ownRest <= 2) score -= 2;
   else if (ownRest <= 3) score -= 1;
 
-  // Congestion flag — if opponent is fatigued, opportunities increase
+  // Opponent fatigue
   const oppRest = isHome ? ctx.awayRestDays : ctx.homeRestDays;
   if (oppRest <= 3) score += 2;
 
-  // Head-to-head history
+  // H2H
   if (h2h) {
-    if (h2h.hit_rate_last_10 >= 0.8) score += 4;
+    if (h2h.hit_rate_last_10 >= 0.8) score += 3;
     else if (h2h.hit_rate_last_10 >= 0.6) score += 2;
     else if (h2h.hit_rate_last_10 <= 0.2) score -= 2;
   }
 
-  // Home advantage bonus
+  // Home advantage
   if (isHome) score += 1;
 
+  // --- OPPONENT DIFFICULTY ---
+  const oppGoalsConceded = isHome ? ctx.awayGoalsConceded : ctx.homeGoalsConceded;
+  const oppCleanSheetRate = isHome ? ctx.awayCleanSheetRate : ctx.homeCleanSheetRate;
+  const oppWinRate = isHome ? ctx.awayWinRate : ctx.homeWinRate;
+
+  // Opponent leaks goals = easier for attacking tips
+  if (oppGoalsConceded >= 2.0) score += 3;
+  else if (oppGoalsConceded >= 1.5) score += 2;
+  else if (oppGoalsConceded >= 1.0) score += 0;
+  else score -= 2; // very tight defence
+
+  // Opponent keeps clean sheets often = harder
+  if (oppCleanSheetRate >= 0.5) score -= 2;
+  else if (oppCleanSheetRate >= 0.3) score -= 1;
+
+  // Opponent wins a lot = tougher match
+  if (oppWinRate >= 0.7) score -= 2;
+  else if (oppWinRate >= 0.5) score -= 1;
+  else if (oppWinRate <= 0.2) score += 2; // relegation-level opponent
+
   return Math.min(Math.max(score, 0), 20);
+}
+
+// ---------------------------------------------------------------------------
+// Opponent strength label — for display on fixture pages
+// ---------------------------------------------------------------------------
+
+export function getOpponentStrengthLabel(
+  ctx: FixtureContext,
+  isHome: boolean
+): { label: string; color: string } {
+  const oppWinRate = isHome ? ctx.awayWinRate : ctx.homeWinRate;
+  const oppGoalsConceded = isHome ? ctx.awayGoalsConceded : ctx.homeGoalsConceded;
+
+  const difficultyScore = oppWinRate * 50 + (1 - oppGoalsConceded / 3) * 50;
+
+  if (difficultyScore >= 70) return { label: 'Very Hard', color: '#f87171' };
+  if (difficultyScore >= 55) return { label: 'Hard', color: '#fb923c' };
+  if (difficultyScore >= 40) return { label: 'Medium', color: '#fbbf24' };
+  if (difficultyScore >= 25) return { label: 'Easy', color: '#4ade80' };
+  return { label: 'Very Easy', color: '#34d399' };
 }
 
 // ---------------------------------------------------------------------------
