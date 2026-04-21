@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { calculatePlayerTrend, calculateTeamTrend, calculateH2H } from '@/lib/trends/engine';
+import { calculateAllPlayerTrends, calculateAllTeamTrends, calculateH2H } from '@/lib/trends/engine';
 import { recalculateFirstGoalStats } from '@/lib/fixtures/get-first-goal-stats';
 import type { StatType } from '@/types/tip';
 
@@ -90,21 +90,18 @@ export async function POST(req: Request) {
     const totalPlayers = playerIds.length;
     const slice = playerIds.slice(offset, offset + pageLimit);
 
+    // Batch version: ONE DB fetch per player, compute all stat types in memory
     let playerTrends = 0;
     for (const playerId of slice) {
-      for (const statType of PLAYER_STAT_TYPES) {
-        try {
-          const trend = await calculatePlayerTrend(playerId, statType, supabase);
-          if (trend) {
-            await supabase.from('player_trends').upsert(
-              { ...trend, updated_at: now },
-              { onConflict: 'player_id,stat_type' }
-            );
-            playerTrends++;
-          }
-        } catch (err) {
-          console.error(`Player trend error id=${playerId} stat=${statType}:`, err);
+      try {
+        const trends = await calculateAllPlayerTrends(playerId, PLAYER_STAT_TYPES, supabase);
+        if (trends.length > 0) {
+          const rows = trends.map(t => ({ ...t, updated_at: now }));
+          await supabase.from('player_trends').upsert(rows, { onConflict: 'player_id,stat_type' });
+          playerTrends += trends.length;
         }
+      } catch (err) {
+        console.error(`Player trend error id=${playerId}:`, err);
       }
     }
     result.playerTrends = playerTrends;
@@ -114,7 +111,7 @@ export async function POST(req: Request) {
   }
 
   // ---------------------------------------------------------------
-  // 2. Team trends — only for teams with match stats
+  // 2. Team trends — paginated to avoid Next.js timeout
   // ---------------------------------------------------------------
   if (scope === 'all' || scope === 'teams') {
     let teamIds: number[];
@@ -133,25 +130,28 @@ export async function POST(req: Request) {
       teamIds = (teams ?? []).map(t => t.api_id);
     }
 
+    // Paginate teams too — with ~100 teams × 28 stat types the full job is too slow
+    const totalTeams = teamIds.length;
+    const slice = teamIds.slice(offset, offset + pageLimit);
+
+    // Batch version: ONE DB fetch per team
     let teamTrends = 0;
-    for (const teamId of teamIds) {
-      for (const statType of TEAM_STAT_TYPES) {
-        try {
-          const trend = await calculateTeamTrend(teamId, statType, supabase);
-          if (trend) {
-            await supabase.from('team_trends').upsert(
-              { ...trend, updated_at: now },
-              { onConflict: 'team_id,stat_type' }
-            );
-            teamTrends++;
-          }
-        } catch (err) {
-          console.error(`Team trend error id=${teamId} stat=${statType}:`, err);
+    for (const teamId of slice) {
+      try {
+        const trends = await calculateAllTeamTrends(teamId, TEAM_STAT_TYPES, supabase);
+        if (trends.length > 0) {
+          const rows = trends.map(t => ({ ...t, updated_at: now }));
+          await supabase.from('team_trends').upsert(rows, { onConflict: 'team_id,stat_type' });
+          teamTrends += trends.length;
         }
+      } catch (err) {
+        console.error(`Team trend error id=${teamId}:`, err);
       }
     }
     result.teamTrends = teamTrends;
-    result.teamsProcessed = teamIds.length;
+    result.teamsProcessed = slice.length;
+    result.totalTeams = totalTeams;
+    result.teamsNextOffset = offset + pageLimit < totalTeams ? offset + pageLimit : null;
   }
 
   // ---------------------------------------------------------------

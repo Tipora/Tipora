@@ -132,7 +132,39 @@ async function run() {
     }
   }
 
-  await call('Recalc team trends',   '/api/trends/calculate?scope=teams');
+  // Paginate team trends (same pattern as player trends above)
+  offset = 0;
+  while (true) {
+    const url = `/api/trends/calculate?scope=teams&offset=${offset}&limit=${pageSize}`;
+    process.stdout.write(`Recalc team trends (offset ${offset})... `);
+    const start = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+    try {
+      const res = await fetch(`${BASE}${url}`, {
+        method: 'POST',
+        headers: { 'x-cron-secret': CRON_SECRET! },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const body = await res.json().catch(() => ({}));
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+      if (!res.ok) {
+        console.log(`FAILED (${res.status}, ${elapsed}s)`);
+        console.log('  ', body);
+        break;
+      }
+      console.log(`OK (${elapsed}s)`);
+      console.log('  ', body);
+      if (body.teamsNextOffset == null) break;
+      offset = body.teamsNextOffset;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.log('ERROR', err instanceof Error ? err.message : err);
+      break;
+    }
+  }
+
   await call('Recalc referee stats', '/api/trends/referees');
   await call('Recalc H2H',           '/api/trends/calculate?scope=h2h');
   await call('Recalc first-goal',    '/api/trends/calculate?scope=firstgoal');

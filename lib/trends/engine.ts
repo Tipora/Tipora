@@ -19,22 +19,52 @@ export async function calculatePlayerTrend(
     .limit(10);
 
   if (!stats?.length) return null;
+  return computePlayerTrendFromRows(playerId, statType, stats as PlayerMatchStatWithFixture[]);
+}
 
-  const values = stats.map((s: PlayerMatchStat) => getPlayerStatValue(s, statType));
+/**
+ * Optimized batch version: fetch a player's last 10 match stats ONCE,
+ * then compute trends for every stat type from the same data.
+ */
+export async function calculateAllPlayerTrends(
+  playerId: number,
+  statTypes: StatType[],
+  supabase: SupabaseClient
+): Promise<PlayerTrend[]> {
+  const { data: stats } = await supabase
+    .from('player_match_stats')
+    .select('*, fixtures(kickoff_at, home_team_id)')
+    .eq('player_id', playerId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (!stats?.length) return [];
+
+  const rows = stats as PlayerMatchStatWithFixture[];
+  const results: PlayerTrend[] = [];
+  for (const statType of statTypes) {
+    const trend = computePlayerTrendFromRows(playerId, statType, rows);
+    if (trend) results.push(trend);
+  }
+  return results;
+}
+
+type PlayerMatchStatWithFixture = PlayerMatchStat & { fixtures: { home_team_id: number } };
+
+function computePlayerTrendFromRows(
+  playerId: number,
+  statType: StatType,
+  stats: PlayerMatchStatWithFixture[]
+): PlayerTrend | null {
+  const values = stats.map(s => getPlayerStatValue(s, statType));
 
   // Only persist trends where the player has *some* activity in this stat
   if (values.every(v => v === 0)) return null;
 
   const streak = countStreak(values);
 
-  const homeStats = stats.filter(
-    (s: PlayerMatchStat & { fixtures: { home_team_id: number } }) =>
-      s.team_id === s.fixtures.home_team_id
-  );
-  const awayStats = stats.filter(
-    (s: PlayerMatchStat & { fixtures: { home_team_id: number } }) =>
-      s.team_id !== s.fixtures.home_team_id
-  );
+  const homeStats = stats.filter(s => s.team_id === s.fixtures.home_team_id);
+  const awayStats = stats.filter(s => s.team_id !== s.fixtures.home_team_id);
 
   return {
     player_id: playerId,
@@ -43,8 +73,8 @@ export async function calculatePlayerTrend(
     last_n_games: values,
     avg_last_5: average(values.slice(0, 5)),
     avg_last_10: average(values),
-    home_avg: average(homeStats.map((s: PlayerMatchStat) => getPlayerStatValue(s, statType))),
-    away_avg: average(awayStats.map((s: PlayerMatchStat) => getPlayerStatValue(s, statType))),
+    home_avg: average(homeStats.map(s => getPlayerStatValue(s, statType))),
+    away_avg: average(awayStats.map(s => getPlayerStatValue(s, statType))),
   };
 }
 
@@ -100,14 +130,48 @@ export async function calculateTeamTrend(
   if (!stats?.length) return null;
 
   const rows = stats as TeamMatchRow[];
+  return computeTeamTrendFromRows(teamId, statType, rows);
+}
+
+/**
+ * Optimized batch version: fetch a team's last 10 matches ONCE,
+ * then compute trends for every stat type from the same data.
+ * Reduces DB queries from N_statTypes to 1 per team.
+ */
+export async function calculateAllTeamTrends(
+  teamId: number,
+  statTypes: StatType[],
+  supabase: SupabaseClient
+): Promise<TeamTrend[]> {
+  const { data: stats } = await supabase
+    .from('team_match_stats')
+    .select('*, fixtures(kickoff_at, home_team_id, away_team_id, home_score, away_score)')
+    .eq('team_id', teamId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (!stats?.length) return [];
+
+  const rows = stats as TeamMatchRow[];
+  const results: TeamTrend[] = [];
+  for (const statType of statTypes) {
+    const trend = computeTeamTrendFromRows(teamId, statType, rows);
+    if (trend) results.push(trend);
+  }
+  return results;
+}
+
+function computeTeamTrendFromRows(
+  teamId: number,
+  statType: StatType,
+  rows: TeamMatchRow[]
+): TeamTrend | null {
   const values = rows.map(s => getTeamStatValue(s, statType));
   if (values.every(v => v === 0)) return null;
 
   const hits = values.filter(v => v > 0).length;
-
   const homeRows = rows.filter(s => s.team_id === s.fixtures.home_team_id);
   const awayRows = rows.filter(s => s.team_id !== s.fixtures.home_team_id);
-
   const homeHits = homeRows.filter(s => getTeamStatValue(s, statType) > 0).length;
   const awayHits = awayRows.filter(s => getTeamStatValue(s, statType) > 0).length;
 
