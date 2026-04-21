@@ -55,6 +55,13 @@ const ODDS_MAP: Partial<Record<StatType, { market: string; selection: string }>>
   draw: { market: 'Match Winner', selection: 'Draw' },
 };
 
+// Player markets with potentially available odds in API-Football
+// The 'selection' is the player name which we plug in at lookup time
+const PLAYER_ODDS_MAP: Partial<Record<StatType, { market: string }>> = {
+  anytime_goalscorer: { market: 'Anytime Goal Scorer' },
+  goal: { market: 'Anytime Goal Scorer' },
+};
+
 // Minimum confidence to publish
 const MIN_CONFIDENCE = 70;
 const MAX_TIPS_PER_DAY = 10;
@@ -168,12 +175,12 @@ export async function POST(req: Request) {
         // H2H for this market
         const h2h = await calculateH2H(homeTeamId, awayTeamId, statType, supabase);
 
-        // Resolve odds
+        // Resolve real odds — skip if we can't get them from a bookmaker
         const oddsMapping = ODDS_MAP[statType];
-        let odds = oddsMapping
+        const odds = oddsMapping
           ? extractDecimalOdds(oddsData, oddsMapping.market, oddsMapping.selection)
           : null;
-        if (!odds) odds = estimateOdds(trend.hit_rate_last_10);
+        if (!odds) continue; // no real odds = no tip published
 
         const input: ExtendedScoringInput = {
           trend, referee, statType, odds, context, h2h, isHome,
@@ -246,11 +253,14 @@ export async function POST(req: Request) {
 
         const h2h = await calculateH2H(homeTeamId, awayTeamId, trend.stat_type as StatType, supabase);
 
-        // Player prop odds are rarely available via API, estimate
-        const hitRate = trend.last_n_games
-          ? trend.last_n_games.filter((v: number) => v > 0).length / Math.max(trend.last_n_games.length, 1)
-          : 0.5;
-        const odds = estimateOdds(hitRate);
+        // Try to find real player prop odds (rare in API-Football for most markets)
+        // Goalscorer / Anytime Goalscorer is the one that's usually available.
+        const playerOddsMapping = PLAYER_ODDS_MAP[trend.stat_type as StatType];
+        let odds: number | null = null;
+        if (playerOddsMapping) {
+          odds = extractDecimalOdds(oddsData, playerOddsMapping.market, playerName);
+        }
+        if (!odds) continue; // no real odds available = skip
 
         const input: ExtendedScoringInput = {
           trend, referee, statType: trend.stat_type as StatType, odds, context, h2h, isHome,
@@ -337,15 +347,3 @@ export async function POST(req: Request) {
   });
 }
 
-/**
- * Estimate decimal odds from a hit-rate probability.
- * Shades the probability DOWN before pricing (bookmakers under-estimate
- * streaks, creating positive value for us when our hit rate is strong).
- */
-function estimateOdds(hitRate: number): number {
-  const prob = Math.max(hitRate, 0.1);
-  // Bookmaker likely prices ~15% lower than our true probability
-  const bookProb = Math.max(prob - 0.15, 0.1);
-  const fairOdds = 1 / bookProb;
-  return +Math.max(fairOdds, 1.20).toFixed(2);
-}

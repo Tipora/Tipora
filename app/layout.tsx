@@ -21,6 +21,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <div className="hidden items-center gap-6 text-sm sm:flex">
               <Link href="/fixtures" className="text-zinc-400 hover:text-white transition-colors">Fixtures</Link>
               <Link href="/leagues" className="text-zinc-400 hover:text-white transition-colors">Leagues</Link>
+              <Link href="/referees" className="text-zinc-400 hover:text-white transition-colors">Refs</Link>
               <Link href="/tips" className="text-zinc-400 hover:text-white transition-colors">Tips</Link>
               <Link href="/tips/acca/game" className="text-zinc-400 hover:text-white transition-colors">Game Acca</Link>
               <Link href="/tips/acca/weekend" className="text-zinc-400 hover:text-white transition-colors">Weekend Acca</Link>

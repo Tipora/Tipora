@@ -91,6 +91,12 @@ async function run() {
     '/api/ingest/team-stats?limit=200&onlyMissing=1'
   );
 
+  // Step 3c: pull odds for upcoming fixtures so real-bookmaker odds flow into tips
+  await call(
+    'Ingest odds for upcoming fixtures',
+    '/api/ingest/odds?limit=60&onlyMissing=1'
+  );
+
   // Step 4: recalculate trends in batches (split to avoid Next.js timeout)
   // Player trends are paginated in batches of 100 — loops until nextOffset is null.
   let offset = 0;
@@ -127,6 +133,7 @@ async function run() {
   }
 
   await call('Recalc team trends',   '/api/trends/calculate?scope=teams');
+  await call('Recalc referee stats', '/api/trends/referees');
   await call('Recalc H2H',           '/api/trends/calculate?scope=h2h');
   await call('Recalc first-goal',    '/api/trends/calculate?scope=firstgoal');
 

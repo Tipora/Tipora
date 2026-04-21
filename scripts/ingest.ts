@@ -41,6 +41,7 @@ if (!CRON_SECRET) {
 
 const STEPS: { name: string; path: string }[] = [
   { name: 'Ingest fixtures',     path: '/api/ingest/fixtures' },
+  { name: 'Ingest odds',         path: '/api/ingest/odds?limit=50&onlyMissing=1' },
   { name: 'Ingest results',      path: '/api/ingest/results' },
   { name: 'Ingest players',      path: '/api/ingest/players' },
 ];

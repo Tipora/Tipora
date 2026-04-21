@@ -96,8 +96,52 @@ export async function POST(req: Request) {
     }
   }
 
+  // Upsert referees extracted from fixture responses
+  const refereeNames = new Set<string>();
+  for (const f of allFixtures) {
+    if (f.fixture.referee) refereeNames.add(f.fixture.referee);
+  }
+
+  const refereeRows = Array.from(refereeNames).map((name, idx) => ({
+    api_id: 900000 + idx, // synthetic id since API-Football doesn't provide one
+    name: name.split(',')[0].trim(), // strip country suffix like "Michael Oliver, England"
+    avg_yellow_cards: 0,
+    avg_red_cards: 0,
+    avg_fouls: 0,
+    avg_booking_points: 0,
+    games_officiated: 0,
+  }));
+
+  if (refereeRows.length > 0) {
+    // Use name as conflict key via a separate unique index — for now, just upsert by api_id
+    // First check if referees already exist by name, reuse their api_id
+    const { data: existingRefs } = await supabase
+      .from('referees')
+      .select('api_id, name')
+      .in('name', refereeRows.map(r => r.name));
+
+    const existingByName = new Map((existingRefs ?? []).map(r => [r.name, r.api_id]));
+    const toInsert = refereeRows.filter(r => !existingByName.has(r.name));
+
+    if (toInsert.length > 0) {
+      await supabase.from('referees').upsert(toInsert, { onConflict: 'api_id' });
+    }
+  }
+
+  // Look up referee IDs by name for the fixture FK
+  const { data: allRefs } = await supabase.from('referees').select('id, name');
+  const refIdByName = new Map((allRefs ?? []).map(r => [r.name, r.id]));
+
   // Now upsert fixtures with FK targets present
-  const mapped = allFixtures.map(mapFixture);
+  const mapped = allFixtures.map(f => {
+    const base = mapFixture(f);
+    const refName = base.referee_name?.split(',')[0]?.trim();
+    const refereeId = refName ? refIdByName.get(refName) ?? null : null;
+    // Remove referee_name from the insert (not a DB column)
+    const { referee_name: _rn, ...insert } = base;
+    void _rn;
+    return { ...insert, referee_id: refereeId };
+  });
 
   // Try full upsert first (includes first_goal_* fields)
   let { error: fixtureError } = await supabase

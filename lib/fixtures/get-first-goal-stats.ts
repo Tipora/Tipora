@@ -21,7 +21,8 @@ export async function getFirstGoalStats(
     .single();
 
   if (!stats) {
-    return { scoredFirstPct: 50, concededFirstPct: 50, avgFirstGoalMinute: 28, scoredFirstWinPct: 65, concededFirstWinPct: 20, gamesAnalysed: 0 };
+    // No data — return zeros and let UI show "insufficient data" rather than fake defaults
+    return { scoredFirstPct: 0, concededFirstPct: 0, avgFirstGoalMinute: 0, scoredFirstWinPct: 0, concededFirstWinPct: 0, gamesAnalysed: 0 };
   }
 
   return {

@@ -57,9 +57,12 @@ export function TipCard({ tip, homeTeam, awayTeam, leagueName, leagueLogo, kicko
             <span className="text-xs text-zinc-500">{formatKickoff(kickoff)}</span>
             <KickoffBadge kickoff={kickoff} status={fixtureStatus} />
           </div>
-          <h3 className="text-sm font-medium text-zinc-400">
-            {homeTeam} vs {awayTeam}
-          </h3>
+          <a
+            href={`/fixtures/${tip.fixture_id}`}
+            className="block text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors"
+          >
+            {homeTeam} vs {awayTeam} →
+          </a>
           {subject && (
             <p className="mt-1 text-lg font-bold text-white">{subject}</p>
           )}

@@ -1,6 +1,5 @@
 import { TrackerClient } from './tracker-client';
 import { createSafeServerClient } from '@/lib/supabase/safe-client';
-import { DEMO_WEEK_STATS, DEMO_SETTLED_TIPS, DEMO_GRAPH_DATA } from '@/lib/demo-data';
 import type { Tip } from '@/types/tip';
 
 export const dynamic = 'force-dynamic';
@@ -16,9 +15,9 @@ export default async function TrackerPage() {
           <p className="mt-1 text-sm text-zinc-500">Full transparency on every tip</p>
         </div>
         <TrackerClient
-          initialStats={DEMO_WEEK_STATS}
-          initialGraphData={DEMO_GRAPH_DATA}
-          initialTips={DEMO_SETTLED_TIPS}
+          initialStats={{ wins: 0, losses: 0, voids: 0, totalPL: 0, staked: 0, roi: 0, period: 'day' }}
+          initialGraphData={[]}
+          initialTips={[]}
         />
       </div>
     );

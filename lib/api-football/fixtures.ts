@@ -79,7 +79,7 @@ export async function fetchFixturesByDate(date: string, leagueId: number): Promi
   });
 }
 
-export function mapFixture(f: APIFixtureResponse): InsertFixture & { first_goal_team?: string; first_goal_minute?: number; first_goal_player?: string } {
+export function mapFixture(f: APIFixtureResponse): InsertFixture & { first_goal_team?: string; first_goal_minute?: number; first_goal_player?: string; referee_name?: string | null } {
   // Extract first goal from events
   let firstGoalTeam: string | undefined;
   let firstGoalMinute: number | undefined;
@@ -99,7 +99,8 @@ export function mapFixture(f: APIFixtureResponse): InsertFixture & { first_goal_
     competition_id: f.league.id,
     home_team_id: f.teams.home.id,
     away_team_id: f.teams.away.id,
-    referee_id: null,
+    referee_id: null, // will be filled in by ingest route after referee upsert
+    referee_name: f.fixture.referee, // raw name from API — used by ingest for lookup
     kickoff_at: f.fixture.date,
     status: f.fixture.status.short,
     home_score: f.goals.home,

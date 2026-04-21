@@ -1,6 +1,5 @@
 import { todayUTC } from '@/lib/utils/dates';
 import { createSafeServerClient } from '@/lib/supabase/safe-client';
-import { DEMO_TIPS } from '@/lib/demo-data';
 import { FilteredTipList } from '@/components/tips/FilteredTipList';
 import type { TipMeta } from '@/components/tips/FilteredTipList';
 import { TipDatePicker } from '@/components/tips/TipDatePicker';
@@ -11,7 +10,7 @@ export const dynamic = 'force-dynamic';
 async function getTodaysTips(): Promise<{ tips: Tip[]; meta: Record<number, TipMeta> }> {
   const supabase = await createSafeServerClient();
   if (!supabase) {
-    return { tips: DEMO_TIPS, meta: buildDemoMeta(DEMO_TIPS) };
+    return { tips: [], meta: {} };
   }
 
   const { data: rows } = await supabase
@@ -22,7 +21,7 @@ async function getTodaysTips(): Promise<{ tips: Tip[]; meta: Record<number, TipM
     .limit(10);
 
   if (!rows?.length) {
-    return { tips: DEMO_TIPS, meta: buildDemoMeta(DEMO_TIPS) };
+    return { tips: [], meta: {} };
   }
 
   const tips: Tip[] = [];
@@ -64,24 +63,6 @@ async function getBookmarkedIds(): Promise<Set<number>> {
     .eq('user_id', user.id);
 
   return new Set((data ?? []).map(b => b.tip_id));
-}
-
-function buildDemoMeta(tips: Tip[]): Record<number, TipMeta> {
-  const out: Record<number, TipMeta> = {};
-  for (const tip of tips) {
-    // Parse "Team A vs Team B — Market" or "Player — Market"
-    const parts = tip.selection.split(' — ')[0];
-    const vs = parts.split(' vs ');
-    out[tip.id] = {
-      homeTeam: vs[0] ?? 'Home',
-      awayTeam: vs[1] ?? 'Away',
-      leagueName: 'Premier League',
-      leagueLogo: null,
-      kickoff: new Date().toISOString(),
-      fixtureStatus: undefined,
-    };
-  }
-  return out;
 }
 
 export default async function TipsPage() {

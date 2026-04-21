@@ -3,14 +3,13 @@ import { createSafeServerClient } from "@/lib/supabase/safe-client";
 import { WeekSummary } from "@/components/tracker/WeekSummary";
 import { TipOfTheDay } from '@/components/tips/TipOfTheDay';
 import { SocialProof } from '@/components/tracker/SocialProof';
-import { DEMO_WEEK_STATS } from "@/lib/demo-data";
 import type { Tip } from '@/types/tip';
 
 export const dynamic = 'force-dynamic';
 
 async function getWeekStats() {
   const supabase = await createSafeServerClient();
-  if (!supabase) return { wins: DEMO_WEEK_STATS.wins, losses: DEMO_WEEK_STATS.losses, voids: DEMO_WEEK_STATS.voids, totalPL: DEMO_WEEK_STATS.totalPL, staked: DEMO_WEEK_STATS.staked };
+  if (!supabase) return { wins: 0, losses: 0, voids: 0, totalPL: 0, staked: 0 };
 
   const now = new Date();
   const weekAgo = new Date(now);
@@ -61,7 +60,7 @@ async function getTipOfTheDay(): Promise<{ tip: Tip; home: string; away: string;
 
 async function getAllTimeStats() {
   const supabase = await createSafeServerClient();
-  if (!supabase) return { totalTips: 142, totalWins: 89, totalLosses: 53, allTimePL: 312, strikeRate: 62.7 };
+  if (!supabase) return { totalTips: 0, totalWins: 0, totalLosses: 0, allTimePL: 0, strikeRate: 0 };
 
   const { data } = await supabase
     .from('tips')
@@ -75,11 +74,11 @@ async function getAllTimeStats() {
   const pl = tips.reduce((s, t) => s + (t.pl ?? 0), 0) / 100;
 
   return {
-    totalTips: total || 142,
-    totalWins: wins || 89,
-    totalLosses: losses || 53,
-    allTimePL: pl || 312,
-    strikeRate: total > 0 ? (wins / total) * 100 : 62.7,
+    totalTips: total,
+    totalWins: wins,
+    totalLosses: losses,
+    allTimePL: pl,
+    strikeRate: total > 0 ? (wins / total) * 100 : 0,
   };
 }
 

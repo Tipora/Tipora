@@ -65,6 +65,41 @@ export async function POST(req: Request) {
         }
       }
 
+      // Build goals_by_period from all Goal events
+      const goalsByPeriod: Record<string, { home: number; away: number }> = {
+        '0-15': { home: 0, away: 0 },
+        '16-30': { home: 0, away: 0 },
+        '31-45': { home: 0, away: 0 },
+        '46-60': { home: 0, away: 0 },
+        '61-75': { home: 0, away: 0 },
+        '76-90': { home: 0, away: 0 },
+      };
+
+      // Count penalties awarded in this match
+      let penaltyCount = 0;
+
+      if (f.events?.length) {
+        for (const event of f.events as Array<{ type: string; detail?: string; time: { elapsed: number }; team: { id: number } }>) {
+          // Count any penalty-related event (scored, missed, or cancelled)
+          if (event.detail === 'Penalty' || event.detail === 'Missed Penalty') {
+            penaltyCount++;
+          }
+          if (event.type !== 'Goal') continue;
+          if (event.detail === 'Missed Penalty') continue;
+          const minute = event.time.elapsed;
+          const isHome = event.team.id === f.teams.home.id;
+          let bucket: string;
+          if (minute <= 15) bucket = '0-15';
+          else if (minute <= 30) bucket = '16-30';
+          else if (minute <= 45) bucket = '31-45';
+          else if (minute <= 60) bucket = '46-60';
+          else if (minute <= 75) bucket = '61-75';
+          else bucket = '76-90';
+          if (isHome) goalsByPeriod[bucket].home++;
+          else goalsByPeriod[bucket].away++;
+        }
+      }
+
       const { error } = await supabase
         .from('fixtures')
         .update({
@@ -74,6 +109,8 @@ export async function POST(req: Request) {
           first_goal_team: firstGoalTeam,
           first_goal_minute: firstGoalMinute,
           first_goal_player: firstGoalPlayer,
+          goals_by_period: goalsByPeriod,
+          penalty_count: penaltyCount,
           updated_at: new Date().toISOString(),
         })
         .eq('api_id', fixture.api_id);

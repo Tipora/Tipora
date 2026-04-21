@@ -159,6 +159,8 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
           awayScoredFirstWinPct={awayFirstGoal.scoredFirstWinPct}
           homeConcededFirstWinPct={homeFirstGoal.concededFirstWinPct}
           awayConcededFirstWinPct={awayFirstGoal.concededFirstWinPct}
+          homeGamesAnalysed={homeFirstGoal.gamesAnalysed}
+          awayGamesAnalysed={awayFirstGoal.gamesAnalysed}
         />
       </div>
 

@@ -16,17 +16,31 @@ export async function POST(req: Request) {
   );
 
   // ---------------------------------------------------------------
-  // 1. Settle individual tips
+  // 1. Settle individual tips (only those whose fixture is FT/PST/CANC)
   // ---------------------------------------------------------------
+  // First get the IDs of eligible fixtures to avoid scanning NS tips
+  const { data: settleableFixtures } = await supabase
+    .from('fixtures')
+    .select('id')
+    .in('status', ['FT', 'AET', 'PEN', 'PST', 'CANC'])
+    .limit(500);
+
+  const settleableIds = (settleableFixtures ?? []).map(f => f.id);
+
+  if (settleableIds.length === 0) {
+    return NextResponse.json({ settled: 0, accasSettled: 0, reason: 'No finished fixtures to settle' });
+  }
+
   const { data: pending } = await supabase
     .from('tips')
     .select('*, fixtures(status, home_score, away_score, home_team_id, away_team_id, first_goal_team, first_goal_minute)')
-    .eq('status', 'pending');
+    .eq('status', 'pending')
+    .in('fixture_id', settleableIds);
 
   let settled = 0;
 
   for (const tip of pending ?? []) {
-    if (tip.fixtures?.status !== 'FT') continue;
+    if (!tip.fixtures || !['FT', 'AET', 'PEN', 'PST', 'CANC'].includes(tip.fixtures.status)) continue;
 
     const fixture = tip.fixtures;
     let result: 'won' | 'lost' | 'void';

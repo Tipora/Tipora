@@ -20,10 +20,10 @@ create or replace function call_tipora_job(endpoint text)
 returns void as $$
 begin
   perform net.http_post(
-    url := 'https://YOUR_APP_URL.vercel.app' || endpoint,
+    url := 'https://tipora-beta.vercel.app' || endpoint,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-cron-secret', 'YOUR_CRON_SECRET'
+      'x-cron-secret', 'tipora-cron-ikoni-2026-x7k9'
     )
   );
 end;

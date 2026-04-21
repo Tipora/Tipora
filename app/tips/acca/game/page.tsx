@@ -1,7 +1,6 @@
 import { AccaCard } from '@/components/tips/AccaCard';
 import { todayUTC } from '@/lib/utils/dates';
 import { createSafeServerClient } from '@/lib/supabase/safe-client';
-import { DEMO_GAME_ACCA, DEMO_TIPS } from '@/lib/demo-data';
 import type { Tip } from '@/types/tip';
 import type { Accumulator } from '@/types/acca';
 
@@ -41,16 +40,6 @@ export default async function GameAccaPage() {
     );
   }
 
-  // Demo fallback
-  if (accasWithLegs.length === 0) {
-    const demoLegs = DEMO_GAME_ACCA.tip_ids.map((id) => {
-      const tip = DEMO_TIPS.find(t => t.id === id) ?? DEMO_TIPS[0];
-      const parts = tip.selection.split(' — ')[0].split(' vs ');
-      return { tip, homeTeam: parts[0] ?? 'Home', awayTeam: parts[1] ?? 'Away' };
-    });
-    accasWithLegs = [{ acca: DEMO_GAME_ACCA, legs: demoLegs }];
-  }
-
   return (
     <div>
       <div className="mb-8">
@@ -58,11 +47,18 @@ export default async function GameAccaPage() {
         <p className="mt-1 text-sm text-zinc-500">Today&apos;s accumulator from the best same-day tips</p>
       </div>
 
-      <div className="space-y-6">
-        {accasWithLegs.map(({ acca, legs }) => (
-          <AccaCard key={acca.id} acca={acca} legs={legs} />
-        ))}
-      </div>
+      {accasWithLegs.length === 0 ? (
+        <div className="rounded-xl border border-zinc-800 py-16 text-center">
+          <p className="text-zinc-500">No game acca available for today.</p>
+          <p className="mt-1 text-xs text-zinc-600">Game accas are built daily at 07:30 UTC once tips exist.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {accasWithLegs.map(({ acca, legs }) => (
+            <AccaCard key={acca.id} acca={acca} legs={legs} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

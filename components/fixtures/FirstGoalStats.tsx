@@ -9,6 +9,8 @@ interface FirstGoalStatsProps {
   awayScoredFirstWinPct: number;
   homeConcededFirstWinPct: number;
   awayConcededFirstWinPct: number;
+  homeGamesAnalysed?: number;
+  awayGamesAnalysed?: number;
 }
 
 export function FirstGoalStats({
@@ -17,7 +19,23 @@ export function FirstGoalStats({
   homeAvgMinute, awayAvgMinute,
   homeScoredFirstWinPct, awayScoredFirstWinPct,
   homeConcededFirstWinPct, awayConcededFirstWinPct,
+  homeGamesAnalysed = 0,
+  awayGamesAnalysed = 0,
 }: FirstGoalStatsProps) {
+  // If no data for either team, show an empty state
+  const hasNoData = homeGamesAnalysed === 0 && awayGamesAnalysed === 0;
+
+  if (hasNoData) {
+    return (
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <h2 className="mb-4 text-lg font-semibold text-white">First Goal Analysis</h2>
+        <p className="py-4 text-center text-sm text-zinc-500">
+          First goal data will appear once more match events are analysed.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
       <h2 className="mb-4 text-lg font-semibold text-white">First Goal Analysis</h2>
