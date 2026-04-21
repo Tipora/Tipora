@@ -64,6 +64,18 @@ interface TeamMatchRow {
   red_cards: number;
   xg: number | null;
   xg_against: number | null;
+  // Advanced
+  fouls_first_half?: number;
+  fouls_second_half?: number;
+  cards_first_half?: number;
+  cards_second_half?: number;
+  shots_inside_box?: number;
+  shots_outside_box?: number;
+  offsides?: number;
+  aerial_duels_won?: number;
+  goalkeeper_saves?: number;
+  big_chances?: number;
+  big_chances_missed?: number;
   fixtures: {
     kickoff_at: string;
     home_team_id: number;
@@ -307,6 +319,19 @@ export function getPlayerStatValue(stat: PlayerMatchStat, type: StatType): numbe
     player_2_plus_sot: stat.shots_on_target >= 2 ? 1 : 0,
     // Combo
     score_or_assist: (stat.goals + stat.assists) >= 1 ? 1 : 0,
+    // Crosses
+    player_1_plus_cross: (stat.crosses_completed ?? 0) >= 1 ? 1 : 0,
+    player_2_plus_crosses: (stat.crosses_completed ?? 0) >= 2 ? 1 : 0,
+    // Tackles
+    player_2_plus_tackles: (stat.tackles ?? 0) >= 2 ? 1 : 0,
+    player_3_plus_tackles: (stat.tackles ?? 0) >= 3 ? 1 : 0,
+    // Interceptions
+    player_1_plus_interception: (stat.interceptions ?? 0) >= 1 ? 1 : 0,
+    // Aerial duels
+    player_1_plus_aerial: (stat.aerial_duels_won ?? 0) >= 1 ? 1 : 0,
+    // Goalkeeper saves
+    goalkeeper_3_plus_saves: (stat.saves ?? 0) >= 3 ? 1 : 0,
+    goalkeeper_5_plus_saves: (stat.saves ?? 0) >= 5 ? 1 : 0,
   };
   return map[type] ?? 0;
 }
@@ -352,6 +377,17 @@ function getTeamStatValue(stat: TeamMatchRow, type: StatType): number {
     // Match fouls (team's own fouls)
     over_20_5_fouls: totalFouls > 10 ? 1 : 0, // per-team: 10+ is high (contributes to 20+ match total)
     over_22_5_fouls: totalFouls > 11 ? 1 : 0,
+    // Offsides
+    over_2_5_offsides: (stat.offsides ?? 0) > 2.5 ? 1 : 0,
+    over_3_5_offsides: (stat.offsides ?? 0) > 3.5 ? 1 : 0,
+    // GK saves
+    team_over_5_5_saves: (stat.goalkeeper_saves ?? 0) > 5.5 ? 1 : 0,
+    // Half fouls
+    team_over_6_5_fouls_h1: (stat.fouls_first_half ?? 0) > 6.5 ? 1 : 0,
+    team_over_6_5_fouls_h2: (stat.fouls_second_half ?? 0) > 6.5 ? 1 : 0,
+    // Half cards
+    card_in_first_half: (stat.cards_first_half ?? 0) > 0 ? 1 : 0,
+    card_in_second_half: (stat.cards_second_half ?? 0) > 0 ? 1 : 0,
   };
   return map[type] ?? 0;
 }

@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 const PRO_PATHS = ['/tips/acca/weekend'];
 const PRO_API_PARAMS = ['week', 'month', 'season', 'allTime'];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
 
   // Skip if Supabase is not configured

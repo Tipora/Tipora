@@ -5,10 +5,14 @@ import { TeamForm } from '@/components/tips/TeamForm';
 import { DifficultyBadge } from '@/components/tips/DifficultyBadge';
 import { LiveScore } from '@/components/tips/LiveScore';
 import { getTeamForm } from '@/lib/fixtures/get-team-form';
+import { getFirstGoalStats } from '@/lib/fixtures/get-first-goal-stats';
+import { FirstGoalStats } from '@/components/fixtures/FirstGoalStats';
 import { getH2HStats } from '@/lib/fixtures/get-h2h-stats';
 import { getSeasonStats } from '@/lib/fixtures/get-season-stats';
 import { H2HChart } from '@/components/fixtures/H2HChart';
 import { SeasonChart } from '@/components/fixtures/SeasonChart';
+import { GoalPeriodChart } from '@/components/fixtures/GoalPeriodChart';
+import { getGoalPeriodStats } from '@/lib/fixtures/get-goal-periods';
 import { getOpponentStrengthLabel } from '@/lib/trends/confidence';
 import { getFixtureContext } from '@/lib/trends/engine';
 import { formatKickoff } from '@/lib/utils/dates';
@@ -59,10 +63,20 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
     getTeamForm(fixture.away_team_id, supabase),
   ]);
 
+  const [homeFirstGoal, awayFirstGoal] = await Promise.all([
+    getFirstGoalStats(fixture.home_team_id, true, supabase),
+    getFirstGoalStats(fixture.away_team_id, false, supabase),
+  ]);
+
   const [h2hMatches, homeSeasonStats, awaySeasonStats] = await Promise.all([
     getH2HStats(fixture.home_team_id, fixture.away_team_id, supabase, 10),
     getSeasonStats(fixture.home_team_id, supabase),
     getSeasonStats(fixture.away_team_id, supabase),
+  ]);
+
+  const [homeGoalPeriods, awayGoalPeriods] = await Promise.all([
+    getGoalPeriodStats(fixture.home_team_id, supabase, 10),
+    getGoalPeriodStats(fixture.away_team_id, supabase, 10),
   ]);
 
   const context = await getFixtureContext(
@@ -132,6 +146,22 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
         />
       </div>
 
+      {/* First Goal Analysis */}
+      <div className="mb-8">
+        <FirstGoalStats
+          homeTeam={homeName}
+          awayTeam={awayName}
+          homeScoredFirstPct={homeFirstGoal.scoredFirstPct}
+          awayScoredFirstPct={awayFirstGoal.scoredFirstPct}
+          homeAvgMinute={homeFirstGoal.avgFirstGoalMinute}
+          awayAvgMinute={awayFirstGoal.avgFirstGoalMinute}
+          homeScoredFirstWinPct={homeFirstGoal.scoredFirstWinPct}
+          awayScoredFirstWinPct={awayFirstGoal.scoredFirstWinPct}
+          homeConcededFirstWinPct={homeFirstGoal.concededFirstWinPct}
+          awayConcededFirstWinPct={awayFirstGoal.concededFirstWinPct}
+        />
+      </div>
+
       {/* Head-to-Head */}
       {h2hMatches.length > 0 && (
         <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
@@ -154,6 +184,22 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
             <SeasonChart data={awaySeasonStats} teamName={awayName} />
           </div>
         )}
+      </div>
+
+      {/* Goal timing */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-2">
+        <GoalPeriodChart
+          teamName={homeName}
+          scoredByPeriod={homeGoalPeriods.scoredByPeriod}
+          concededByPeriod={homeGoalPeriods.concededByPeriod}
+          gamesAnalysed={homeGoalPeriods.gamesAnalysed}
+        />
+        <GoalPeriodChart
+          teamName={awayName}
+          scoredByPeriod={awayGoalPeriods.scoredByPeriod}
+          concededByPeriod={awayGoalPeriods.concededByPeriod}
+          gamesAnalysed={awayGoalPeriods.gamesAnalysed}
+        />
       </div>
 
       <div className="mb-4">

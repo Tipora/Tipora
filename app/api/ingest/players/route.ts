@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { fetchPlayerStatsByFixture, mapPlayerStat } from '@/lib/api-football/players';
+import { fetchPlayerStatsByFixture, flattenFixturePlayers } from '@/lib/api-football/players';
 
 export async function POST(req: Request) {
   const secret = req.headers.get('x-cron-secret');
@@ -16,72 +16,123 @@ export async function POST(req: Request) {
     { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
   );
 
+  // ?limit=200 for backfill, default 20 for normal ingest
+  // ?onlyMissing=1 skips fixtures that already have player_match_stats
+  const { searchParams } = new URL(req.url);
+  const limit = parseInt(searchParams.get('limit') ?? '20', 10);
+  const onlyMissing = searchParams.get('onlyMissing') === '1';
+
   const { data: recentFixtures } = await supabase
     .from('fixtures')
     .select('id, api_id')
     .eq('status', 'FT')
-    .order('updated_at', { ascending: false })
-    .limit(20);
+    .order('kickoff_at', { ascending: false })
+    .limit(limit);
 
   if (!recentFixtures?.length) {
-    return NextResponse.json({ ingested: 0 });
+    return NextResponse.json({ ingested: 0, reason: 'No finished fixtures to process' });
+  }
+
+  // Filter to fixtures without existing player stats
+  let fixturesToProcess = recentFixtures;
+  if (onlyMissing) {
+    const fixtureIds = recentFixtures.map(f => f.id);
+    const { data: existing } = await supabase
+      .from('player_match_stats')
+      .select('fixture_id')
+      .in('fixture_id', fixtureIds);
+    const existingIds = new Set((existing ?? []).map(e => e.fixture_id));
+    fixturesToProcess = recentFixtures.filter(f => !existingIds.has(f.id));
   }
 
   let totalIngested = 0;
+  let fixturesWithData = 0;
+  const errors: string[] = [];
 
-  for (const fixture of recentFixtures) {
+  for (const fixture of fixturesToProcess) {
     try {
-      const playerStats = await fetchPlayerStatsByFixture(fixture.api_id);
-      for (const p of playerStats) {
-        const mapped = mapPlayerStat(p, fixture.id);
-        if (!mapped) continue;
+      const response = await fetchPlayerStatsByFixture(fixture.api_id);
+      const rows = flattenFixturePlayers(response, fixture.id);
 
-        const { error: playerError } = await supabase
-          .from('players')
-          .upsert(
-            {
-              api_id: mapped.player_api_id,
-              name: mapped.player_name,
-              team_id: mapped.team_id,
-              position: mapped.position,
-              nationality: mapped.nationality,
-              photo_url: mapped.photo_url,
-            },
-            { onConflict: 'api_id' }
-          );
-        if (playerError) console.error('Player upsert error:', playerError);
+      if (rows.length === 0) continue;
+      fixturesWithData++;
 
-        const { error: statError } = await supabase
-          .from('player_match_stats')
-          .upsert(
-            {
-              player_id: mapped.player_api_id,
-              fixture_id: mapped.fixture_id,
-              team_id: mapped.team_id,
-              minutes_played: mapped.minutes_played,
-              goals: mapped.goals,
-              assists: mapped.assists,
-              fouls_committed: mapped.fouls_committed,
-              fouls_drawn: mapped.fouls_drawn,
-              yellow_cards: mapped.yellow_cards,
-              red_cards: mapped.red_cards,
-              shots: mapped.shots,
-              shots_on_target: mapped.shots_on_target,
-              passes: mapped.passes,
-              pass_accuracy: mapped.pass_accuracy,
-              dribbles: mapped.dribbles,
-              duels_won: mapped.duels_won,
-              corners_taken: mapped.corners_taken,
-            },
-            { onConflict: 'player_id,fixture_id' }
-          );
-        if (statError) console.error('Stat upsert error:', statError);
-        totalIngested++;
+      // Upsert players first (FK for player_match_stats)
+      const uniquePlayers = new Map<number, typeof rows[number]>();
+      for (const r of rows) {
+        if (!uniquePlayers.has(r.player_api_id)) uniquePlayers.set(r.player_api_id, r);
       }
+      const playerRows = Array.from(uniquePlayers.values()).map(r => ({
+        api_id: r.player_api_id,
+        name: r.player_name,
+        team_id: r.team_id,
+        position: r.position,
+        nationality: r.nationality,
+        photo_url: r.photo_url,
+      }));
+
+      const { error: playerError } = await supabase
+        .from('players')
+        .upsert(playerRows, { onConflict: 'api_id' });
+      if (playerError) {
+        errors.push(`Player upsert for fixture ${fixture.api_id}: ${playerError.message}`);
+        continue;
+      }
+
+      // Now upsert match stats
+      const statRows = rows.map(r => ({
+        player_id: r.player_api_id,
+        fixture_id: r.fixture_id,
+        team_id: r.team_id,
+        minutes_played: r.minutes_played,
+        goals: r.goals,
+        assists: r.assists,
+        fouls_committed: r.fouls_committed,
+        fouls_drawn: r.fouls_drawn,
+        yellow_cards: r.yellow_cards,
+        red_cards: r.red_cards,
+        shots: r.shots,
+        shots_on_target: r.shots_on_target,
+        passes: r.passes,
+        pass_accuracy: r.pass_accuracy,
+        dribbles: r.dribbles,
+        duels_won: r.duels_won,
+        corners_taken: r.corners_taken,
+        tackles: r.tackles,
+        interceptions: r.interceptions,
+        blocks: r.blocks,
+      }));
+
+      const { error: statError } = await supabase
+        .from('player_match_stats')
+        .upsert(statRows, { onConflict: 'player_id,fixture_id' });
+
+      if (statError) {
+        // Retry without advanced columns (migration 010 not applied)
+        const stripped = statRows.map(({ tackles, interceptions, blocks, ...rest }) => {
+          void tackles; void interceptions; void blocks;
+          return rest;
+        });
+        const { error: retry } = await supabase
+          .from('player_match_stats')
+          .upsert(stripped, { onConflict: 'player_id,fixture_id' });
+        if (retry) {
+          errors.push(`Stat upsert for fixture ${fixture.api_id}: ${statError.message} (retry: ${retry.message})`);
+          continue;
+        }
+      }
+
+      totalIngested += rows.length;
     } catch (err) {
-      console.error(`Failed to ingest players for fixture ${fixture.api_id}:`, err);
+      errors.push(`Fixture ${fixture.api_id}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  return NextResponse.json({ ingested: totalIngested });
+  return NextResponse.json({
+    ingested: totalIngested,
+    fixturesScanned: fixturesToProcess.length,
+    fixturesWithData,
+    errorCount: errors.length,
+    errors: errors.slice(0, 5),
+  });
 }

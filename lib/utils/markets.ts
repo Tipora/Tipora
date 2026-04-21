@@ -49,6 +49,35 @@ export const MARKET_LABELS: Record<StatType, string> = {
   home_win: 'Home Win',
   away_win: 'Away Win',
   draw: 'Draw',
+  // First goal
+  home_first_goal: 'Home to Score First',
+  away_first_goal: 'Away to Score First',
+  first_goal_before_30: 'Goal Before 30 Min',
+  first_goal_before_15: 'Goal Before 15 Min',
+  // Time period
+  goal_first_half: 'Goal in 1st Half',
+  goal_second_half: 'Goal in 2nd Half',
+  goal_in_both_halves: 'Goal in Both Halves',
+  goal_0_30: 'Goal in First 30 Min',
+  goal_after_75: 'Goal After 75 Min',
+  // Half stats
+  team_over_6_5_fouls_h1: '1H Team Fouls Over 6.5',
+  team_over_6_5_fouls_h2: '2H Team Fouls Over 6.5',
+  card_in_first_half: 'Card in 1st Half',
+  card_in_second_half: 'Card in 2nd Half',
+  // Advanced team
+  over_2_5_offsides: 'Over 2.5 Offsides',
+  over_3_5_offsides: 'Over 3.5 Offsides',
+  team_over_5_5_saves: 'Goalkeeper 6+ Saves',
+  // Player — crosses, tackles, interceptions
+  player_1_plus_cross: '1+ Successful Crosses',
+  player_2_plus_crosses: '2+ Successful Crosses',
+  player_2_plus_tackles: '2+ Tackles',
+  player_3_plus_tackles: '3+ Tackles',
+  player_1_plus_interception: '1+ Interception',
+  player_1_plus_aerial: '1+ Aerial Duel Won',
+  goalkeeper_3_plus_saves: 'Goalkeeper 3+ Saves',
+  goalkeeper_5_plus_saves: 'Goalkeeper 5+ Saves',
 };
 
 export const TAG_COLORS: Record<TipTag, string> = {

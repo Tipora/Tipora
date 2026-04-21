@@ -33,7 +33,36 @@ export type StatType =
   // Clean sheet
   | 'clean_sheet'
   // Result
-  | 'home_win' | 'away_win' | 'draw';
+  | 'home_win' | 'away_win' | 'draw'
+  // Time period goals (based on goals_by_period)
+  | 'goal_first_half'        // at least one goal in 0-45
+  | 'goal_second_half'       // at least one goal in 46-90
+  | 'goal_in_both_halves'    // goal in each half
+  | 'goal_0_30'              // goal before 30th minute
+  | 'goal_after_75'          // goal after 75th minute
+  // Half stats
+  | 'team_over_6_5_fouls_h1' // 7+ team fouls in 1H
+  | 'team_over_6_5_fouls_h2' // 7+ team fouls in 2H
+  | 'card_in_first_half'     // at least 1 card in 1H
+  | 'card_in_second_half'    // at least 1 card in 2H
+  // Advanced team
+  | 'over_2_5_offsides'      // match offsides > 2.5
+  | 'over_3_5_offsides'      // match offsides > 3.5
+  | 'team_over_5_5_saves'    // goalkeeper 6+ saves
+  // Player — crosses, tackles, interceptions, aerial
+  | 'player_1_plus_cross'    // 1+ successful cross
+  | 'player_2_plus_crosses'  // 2+ successful crosses
+  | 'player_2_plus_tackles'  // 2+ tackles
+  | 'player_3_plus_tackles'  // 3+ tackles
+  | 'player_1_plus_interception' // 1+ interception
+  | 'player_1_plus_aerial'   // 1+ aerial duel won
+  | 'goalkeeper_3_plus_saves'// GK 3+ saves
+  | 'goalkeeper_5_plus_saves'// GK 5+ saves
+  // First goal
+  | 'home_first_goal'   // home team scores first
+  | 'away_first_goal'   // away team scores first
+  | 'first_goal_before_30' // first goal scored before 30th minute
+  | 'first_goal_before_15'; // first goal scored before 15th minute
 
 export type TipTag = 'BANKER' | 'VALUE' | 'BOLD' | 'LONGSHOT';
 export type TipStatus = 'pending' | 'won' | 'lost' | 'void';

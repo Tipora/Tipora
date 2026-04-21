@@ -27,6 +27,18 @@ export interface PlayerMatchStat {
   dribbles: number;
   duels_won: number;
   corners_taken: number;
+  // Advanced
+  expected_assists?: number;
+  progressive_carries?: number;
+  crosses_total?: number;
+  crosses_completed?: number;
+  big_chances_missed?: number;
+  aerial_duels_won?: number;
+  saves?: number;
+  tackles?: number;
+  interceptions?: number;
+  blocks?: number;
+  goal_minute?: number | null;
   created_at: string;
 }
 
@@ -43,5 +55,17 @@ export interface TeamMatchStat {
   red_cards: number;
   xg: number | null;
   xg_against: number | null;
+  // Advanced
+  fouls_first_half?: number;
+  fouls_second_half?: number;
+  cards_first_half?: number;
+  cards_second_half?: number;
+  shots_inside_box?: number;
+  shots_outside_box?: number;
+  offsides?: number;
+  aerial_duels_won?: number;
+  goalkeeper_saves?: number;
+  big_chances?: number;
+  big_chances_missed?: number;
   created_at: string;
 }

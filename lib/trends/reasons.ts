@@ -182,6 +182,35 @@ function formatStat(statType: StatType): string {
     home_win: 'a home win',
     away_win: 'an away win',
     draw: 'a draw',
+    // First goal
+    home_first_goal: 'scoring the first goal (home)',
+    away_first_goal: 'scoring the first goal (away)',
+    first_goal_before_30: 'a goal before the 30th minute',
+    first_goal_before_15: 'a goal before the 15th minute',
+    // Time period
+    goal_first_half: 'a goal in the first half',
+    goal_second_half: 'a goal in the second half',
+    goal_in_both_halves: 'a goal in both halves',
+    goal_0_30: 'a goal before 30 min',
+    goal_after_75: 'a goal after 75 min',
+    // Half stats
+    team_over_6_5_fouls_h1: '7+ team fouls in 1H',
+    team_over_6_5_fouls_h2: '7+ team fouls in 2H',
+    card_in_first_half: 'a card in the first half',
+    card_in_second_half: 'a card in the second half',
+    // Advanced team
+    over_2_5_offsides: '3+ offsides',
+    over_3_5_offsides: '4+ offsides',
+    team_over_5_5_saves: '6+ goalkeeper saves',
+    // Player
+    player_1_plus_cross: '1+ successful cross',
+    player_2_plus_crosses: '2+ successful crosses',
+    player_2_plus_tackles: '2+ tackles',
+    player_3_plus_tackles: '3+ tackles',
+    player_1_plus_interception: '1+ interception',
+    player_1_plus_aerial: '1+ aerial duel won',
+    goalkeeper_3_plus_saves: '3+ GK saves',
+    goalkeeper_5_plus_saves: '5+ GK saves',
   };
   return friendly[statType] ?? statType;
 }

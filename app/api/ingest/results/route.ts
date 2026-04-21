@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { apiFetch } from '@/lib/api-football/client';
+
+interface APIFixtureResponse {
+  fixture: { id: number; date: string; status: { short: string }; referee: string | null };
+  league: { id: number };
+  teams: { home: { id: number; name: string }; away: { id: number; name: string } };
+  goals: { home: number | null; away: number | null };
+  events?: Array<{
+    time: { elapsed: number };
+    team: { id: number };
+    type: string;
+    detail: string;
+    player?: { name: string };
+  }>;
+}
 
 export async function POST(req: Request) {
   const secret = req.headers.get('x-cron-secret');
@@ -28,13 +43,27 @@ export async function POST(req: Request) {
   let updated = 0;
   for (const fixture of pending) {
     try {
-      const res = await fetch(
-        `https://v3.football.api-sports.io/fixtures?id=${fixture.api_id}`,
-        { headers: { 'x-apisports-key': process.env.API_FOOTBALL_KEY! } }
-      );
-      const data = await res.json();
-      const f = data.response?.[0];
+      const results = await apiFetch<APIFixtureResponse>('/fixtures', {
+        id: String(fixture.api_id),
+      });
+      const f = results[0];
       if (!f) continue;
+
+      // Extract first goal from events
+      let firstGoalTeam = null;
+      let firstGoalMinute = null;
+      let firstGoalPlayer = null;
+
+      if (f.events?.length) {
+        const goalEvent = f.events.find((e: { type: string; detail: string }) =>
+          e.type === 'Goal' && e.detail !== 'Missed Penalty'
+        );
+        if (goalEvent) {
+          firstGoalTeam = goalEvent.team.id === f.teams.home.id ? 'home' : 'away';
+          firstGoalMinute = goalEvent.time.elapsed;
+          firstGoalPlayer = goalEvent.player?.name ?? null;
+        }
+      }
 
       const { error } = await supabase
         .from('fixtures')
@@ -42,6 +71,9 @@ export async function POST(req: Request) {
           status: f.fixture.status.short,
           home_score: f.goals.home,
           away_score: f.goals.away,
+          first_goal_team: firstGoalTeam,
+          first_goal_minute: firstGoalMinute,
+          first_goal_player: firstGoalPlayer,
           updated_at: new Date().toISOString(),
         })
         .eq('api_id', fixture.api_id);

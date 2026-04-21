@@ -86,16 +86,21 @@ export async function POST(req: Request) {
 
   const date = todayUTC();
 
-  // 1. Get today's not-started fixtures with team info
+  // Get upcoming not-started fixtures (today + next 6 days)
+  // Tips are published ahead of kickoff — 7-day window catches weekend games.
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + 6);
+  const endStr = endDate.toISOString().split('T')[0];
+
   const { data: fixtures } = await supabase
     .from('fixtures')
     .select('*, home_team:teams!fixtures_home_team_id_fkey(id, api_id, name), away_team:teams!fixtures_away_team_id_fkey(id, api_id, name)')
     .eq('status', 'NS')
     .gte('kickoff_at', `${date}T00:00:00`)
-    .lte('kickoff_at', `${date}T23:59:59`);
+    .lte('kickoff_at', `${endStr}T23:59:59`);
 
   if (!fixtures?.length) {
-    return NextResponse.json({ generated: 0, message: 'No fixtures today' });
+    return NextResponse.json({ generated: 0, message: 'No upcoming fixtures found in DB — run ingest first' });
   }
 
   const candidates: TipCandidate[] = [];

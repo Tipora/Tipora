@@ -4,6 +4,8 @@ import { TipCard } from '@/components/tips/TipCard';
 import { FormStrip } from '@/components/tips/FormStrip';
 import { StatGameLog } from '@/components/players/StatGameLog';
 import { PlayerStatChart } from '@/components/players/PlayerStatChart';
+import { AdvancedStats } from '@/components/players/AdvancedStats';
+import { AdvancedStatsChart } from '@/components/players/AdvancedStatsChart';
 import { MARKET_LABELS } from '@/lib/utils/markets';
 import type { Tip, StatType } from '@/types/tip';
 import type { Metadata } from 'next';
@@ -65,6 +67,17 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   const avgSOT = stats.reduce((s, x) => s + x.shots_on_target, 0) / count;
   const avgFouls = stats.reduce((s, x) => s + x.fouls_committed, 0) / count;
   const avgYellows = stats.reduce((s, x) => s + x.yellow_cards, 0) / count;
+
+  // Advanced stat averages (safe defaults if columns don't exist yet)
+  const avgXA = stats.reduce((s, x) => s + (Number(x.expected_assists) || 0), 0) / count;
+  const avgProgressiveCarries = stats.reduce((s, x) => s + (x.progressive_carries ?? 0), 0) / count;
+  const avgCrossesTotal = stats.reduce((s, x) => s + (x.crosses_total ?? 0), 0) / count;
+  const avgCrossesCompleted = stats.reduce((s, x) => s + (x.crosses_completed ?? 0), 0) / count;
+  const avgTackles = stats.reduce((s, x) => s + (x.tackles ?? 0), 0) / count;
+  const avgInterceptions = stats.reduce((s, x) => s + (x.interceptions ?? 0), 0) / count;
+  const avgAerialDuelsWon = stats.reduce((s, x) => s + (x.aerial_duels_won ?? 0), 0) / count;
+  const avgSaves = stats.reduce((s, x) => s + (x.saves ?? 0), 0) / count;
+  const avgBigChancesMissed = stats.reduce((s, x) => s + (Number(x.big_chances_missed) || 0), 0) / count;
 
   // Player trends
   const { data: trends } = await supabase
@@ -132,6 +145,31 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
             sot: s.shots_on_target,
             fouls: s.fouls_committed,
           }))}
+        />
+      </div>
+
+      {/* Advanced stats */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+        <AdvancedStats
+          position={player.position ?? ''}
+          avgExpectedAssists={avgXA}
+          avgProgressiveCarries={avgProgressiveCarries}
+          avgCrossesTotal={avgCrossesTotal}
+          avgCrossesCompleted={avgCrossesCompleted}
+          avgTackles={avgTackles}
+          avgInterceptions={avgInterceptions}
+          avgAerialDuelsWon={avgAerialDuelsWon}
+          avgSaves={avgSaves}
+          avgBigChancesMissed={avgBigChancesMissed}
+        />
+        <AdvancedStatsChart
+          playerName={player.name}
+          avgTackles={avgTackles}
+          avgInterceptions={avgInterceptions}
+          avgAerialDuelsWon={avgAerialDuelsWon}
+          avgCrossesCompleted={avgCrossesCompleted}
+          avgProgressiveCarries={avgProgressiveCarries}
+          avgExpectedAssists={avgXA}
         />
       </div>
 

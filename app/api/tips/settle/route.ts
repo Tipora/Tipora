@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   // ---------------------------------------------------------------
   const { data: pending } = await supabase
     .from('tips')
-    .select('*, fixtures(status, home_score, away_score, home_team_id, away_team_id)')
+    .select('*, fixtures(status, home_score, away_score, home_team_id, away_team_id, first_goal_team, first_goal_minute)')
     .eq('status', 'pending');
 
   let settled = 0;
@@ -44,7 +44,9 @@ export async function POST(req: Request) {
         fixture.away_score ?? 0,
         tip.fixture_id,
         fixture.home_team_id,
-        tip.selection
+        tip.selection,
+        fixture.first_goal_team ?? null,
+        fixture.first_goal_minute ?? null
       );
     }
 
@@ -123,7 +125,9 @@ function settleMatchTip(
   awayScore: number,
   _fixtureId: number,
   _homeTeamId: number,
-  _selection: string
+  _selection: string,
+  firstGoalTeam: string | null,
+  firstGoalMinute: number | null
 ): 'won' | 'lost' | 'void' {
   const total = homeScore + awayScore;
 
@@ -143,6 +147,11 @@ function settleMatchTip(
     // Half-time (can't determine from FT data alone)
     case 'first_half_goal': return 'void';
     case 'over_1_5_goals_ht': return 'void';
+    // First goal
+    case 'home_first_goal': return firstGoalTeam === 'home' ? 'won' : firstGoalTeam ? 'lost' : 'void';
+    case 'away_first_goal': return firstGoalTeam === 'away' ? 'won' : firstGoalTeam ? 'lost' : 'void';
+    case 'first_goal_before_30': return firstGoalMinute !== null && firstGoalMinute < 30 ? 'won' : firstGoalMinute !== null ? 'lost' : 'void';
+    case 'first_goal_before_15': return firstGoalMinute !== null && firstGoalMinute < 15 ? 'won' : firstGoalMinute !== null ? 'lost' : 'void';
     // Corner/card/foul match totals need team_match_stats — handled below
     default: return 'void';
   }
