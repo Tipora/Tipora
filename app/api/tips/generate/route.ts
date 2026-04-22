@@ -7,7 +7,7 @@ import type { ExtendedScoringInput } from '@/lib/trends/confidence';
 import { generateReasons } from '@/lib/trends/reasons';
 import { getTagFromConfidenceAndOdds } from '@/lib/utils/markets';
 import { todayUTC } from '@/lib/utils/dates';
-import { fetchOddsForFixture, extractDecimalOdds } from '@/lib/api-football/odds';
+import { getStoredOdds } from '@/lib/api-football/odds';
 import type { StatType, PlayerTrend, TeamTrend } from '@/types/tip';
 import type { Referee } from '@/types/fixture';
 
@@ -134,13 +134,8 @@ export async function POST(req: Request) {
       referee = data;
     }
 
-    // Fetch odds from API-Football (if available, fall back to estimates)
-    let oddsData: Awaited<ReturnType<typeof fetchOddsForFixture>> = [];
-    try {
-      oddsData = await fetchOddsForFixture(fixture.api_id);
-    } catch {
-      // Odds not available — we'll use fallback
-    }
+    // Odds now come from fixture_odds table (populated by /api/ingest/odds)
+    // Using median across reputable bookmakers — no more live API calls here
 
     // ---------------------------------------------------------------
     // A. Team-level tips
@@ -175,10 +170,10 @@ export async function POST(req: Request) {
         // H2H for this market
         const h2h = await calculateH2H(homeTeamId, awayTeamId, statType, supabase);
 
-        // Resolve real odds — skip if we can't get them from a bookmaker
+        // Resolve real odds from our ingested fixture_odds table — median across reputable bookmakers
         const oddsMapping = ODDS_MAP[statType];
         const odds = oddsMapping
-          ? extractDecimalOdds(oddsData, oddsMapping.market, oddsMapping.selection)
+          ? await getStoredOdds(supabase, fixture.id, oddsMapping.market, oddsMapping.selection)
           : null;
         if (!odds) continue; // no real odds = no tip published
 
@@ -253,12 +248,11 @@ export async function POST(req: Request) {
 
         const h2h = await calculateH2H(homeTeamId, awayTeamId, trend.stat_type as StatType, supabase);
 
-        // Try to find real player prop odds (rare in API-Football for most markets)
-        // Goalscorer / Anytime Goalscorer is the one that's usually available.
+        // Try to find real player prop odds from the stored odds table
         const playerOddsMapping = PLAYER_ODDS_MAP[trend.stat_type as StatType];
         let odds: number | null = null;
         if (playerOddsMapping) {
-          odds = extractDecimalOdds(oddsData, playerOddsMapping.market, playerName);
+          odds = await getStoredOdds(supabase, fixture.id, playerOddsMapping.market, playerName);
         }
         if (!odds) continue; // no real odds available = skip
 
