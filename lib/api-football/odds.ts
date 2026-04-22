@@ -14,7 +14,7 @@ interface APIOddsResponse {
   }>;
 }
 
-// Reputable bookmakers — we only use odds from these to avoid outlier pricing
+// Reputable bookmakers only
 const REPUTABLE_BOOKMAKERS = new Set([
   'Bet365',
   'Pinnacle',
@@ -27,6 +27,25 @@ const REPUTABLE_BOOKMAKERS = new Set([
   'Betfair',
 ]);
 
+/**
+ * EXACT market names used by API-Football — we only match against these.
+ * Fuzzy/contains matching caused "Over/Under" to match "Home Over/Under"
+ * and "Corners Over/Under" producing wildly wrong odds.
+ */
+const MARKET_ALIASES: Record<string, string[]> = {
+  // Match total goals
+  'Goals Over/Under': ['Goals Over/Under', 'Over/Under', 'Match Goals'],
+  // Both Teams to Score (match level)
+  'Both Teams Score': ['Both Teams Score', 'Both Teams To Score'],
+  // Match winner (1X2)
+  'Match Winner': ['Match Winner'],
+  // Clean Sheet — API splits into home/away
+  'Clean Sheet - Home': ['Clean Sheet - Home'],
+  'Clean Sheet - Away': ['Clean Sheet - Away'],
+  // Anytime goal scorer
+  'Anytime Goal Scorer': ['Anytime Goal Scorer', 'Goalscorer'],
+};
+
 export async function fetchOddsForFixture(fixtureId: number): Promise<APIOddsResponse[]> {
   return apiFetch<APIOddsResponse>('/odds', {
     fixture: String(fixtureId),
@@ -35,7 +54,7 @@ export async function fetchOddsForFixture(fixtureId: number): Promise<APIOddsRes
 
 /**
  * Extract the MEDIAN odds for a market+selection across reputable bookmakers.
- * Median is far more robust than "best" — one outlier can't distort the price.
+ * Uses STRICT market matching (no substring) — only exact name or known alias.
  */
 export function extractDecimalOdds(
   oddsData: APIOddsResponse[],
@@ -48,27 +67,11 @@ export function extractDecimalOdds(
     for (const bm of resp.bookmakers) {
       if (!REPUTABLE_BOOKMAKERS.has(bm.name)) continue;
       for (const bet of bm.bets) {
-        if (!matchesMarket(bet.name, marketName)) continue;
-        const found = bet.values.find(v => matchesSelection(v.value, selection));
+        if (!isMatchingMarket(bet.name, marketName)) continue;
+        const found = bet.values.find(v => isMatchingSelection(v.value, selection));
         if (found) {
           const odds = parseFloat(found.odd);
           if (!isNaN(odds) && odds > 1) samples.push(odds);
-        }
-      }
-    }
-  }
-
-  if (samples.length === 0) {
-    // Fall back to ALL bookmakers if no reputable ones have this market
-    for (const resp of oddsData) {
-      for (const bm of resp.bookmakers) {
-        for (const bet of bm.bets) {
-          if (!matchesMarket(bet.name, marketName)) continue;
-          const found = bet.values.find(v => matchesSelection(v.value, selection));
-          if (found) {
-            const odds = parseFloat(found.odd);
-            if (!isNaN(odds) && odds > 1) samples.push(odds);
-          }
         }
       }
     }
@@ -78,8 +81,7 @@ export function extractDecimalOdds(
 }
 
 /**
- * Get odds for a fixture from the fixture_odds table (ingested copy).
- * Returns median across reputable bookmakers, or null if none found.
+ * Get median odds from the ingested fixture_odds table.
  */
 export async function getStoredOdds(
   supabase: SupabaseClient,
@@ -89,34 +91,27 @@ export async function getStoredOdds(
 ): Promise<number | null> {
   const { data } = await supabase
     .from('fixture_odds')
-    .select('bookmaker, odds')
+    .select('bookmaker, market, selection, odds')
     .eq('fixture_id', fixtureId);
 
   if (!data?.length) return null;
 
-  // Filter to matching market+selection using same fuzzy logic
-  // We need to also fetch market/selection — expand the query
-  const { data: filtered } = await supabase
-    .from('fixture_odds')
-    .select('bookmaker, market, selection, odds')
-    .eq('fixture_id', fixtureId);
-
-  if (!filtered?.length) return null;
-
   const reputable: number[] = [];
   const allSamples: number[] = [];
 
-  for (const row of filtered) {
-    if (!matchesMarket(row.market, market)) continue;
-    if (!matchesSelection(row.selection, selection)) continue;
+  for (const row of data) {
+    if (!isMatchingMarket(row.market, market)) continue;
+    if (!isMatchingSelection(row.selection, selection)) continue;
     const odds = Number(row.odds);
     if (isNaN(odds) || odds <= 1) continue;
     if (REPUTABLE_BOOKMAKERS.has(row.bookmaker)) reputable.push(odds);
     allSamples.push(odds);
   }
 
-  if (reputable.length > 0) return median(reputable);
-  if (allSamples.length > 0) return median(allSamples);
+  if (reputable.length >= 2) return median(reputable);
+  if (allSamples.length >= 2) return median(allSamples);
+  if (reputable.length === 1) return reputable[0];
+  if (allSamples.length === 1) return allSamples[0];
   return null;
 }
 
@@ -127,33 +122,32 @@ function median(arr: number[]): number {
   return +val.toFixed(2);
 }
 
-function matchesMarket(actual: string, target: string): boolean {
-  const a = actual.toLowerCase().trim();
-  const t = target.toLowerCase().trim();
+/**
+ * STRICT market matching — exact match or a known alias.
+ * Never substring, because "Over/Under" would also match "Home Team Over/Under".
+ */
+function isMatchingMarket(actualRaw: string, targetRaw: string): boolean {
+  const actual = actualRaw.trim();
+  const target = targetRaw.trim();
 
-  if (a === t) return true;
-  if (a.includes(t)) return true;
+  if (actual.toLowerCase() === target.toLowerCase()) return true;
 
-  const aliases: Record<string, string[]> = {
-    'over/under': ['goals over/under', 'match goals', 'over under'],
-    'both teams score': ['both teams to score', 'btts'],
-    'match winner': ['match winner', 'home/away', '1x2'],
-    'clean sheet': ['clean sheet', 'clean sheet home', 'clean sheet away'],
-  };
+  const aliases = MARKET_ALIASES[target];
+  if (!aliases) return false;
 
-  for (const [key, vals] of Object.entries(aliases)) {
-    if (t === key && vals.some(v => a === v || a.includes(v))) return true;
-  }
-
-  return false;
+  return aliases.some(a => a.toLowerCase() === actual.toLowerCase());
 }
 
-function matchesSelection(actual: string, target: string): boolean {
-  const a = actual.toLowerCase().trim();
-  const t = target.toLowerCase().trim();
-  if (a === t) return true;
-  // STRICT: for numeric selections like "Over 2.5", avoid matching "Over 22.5"
-  // Only allow substring if the boundary is safe
-  if (a.startsWith(t + ' ') || a.endsWith(' ' + t) || a === t) return true;
+/**
+ * Selection matching — exact or safe boundary substring (won't match "Over 22.5" for "Over 2.5")
+ */
+function isMatchingSelection(actualRaw: string, targetRaw: string): boolean {
+  const actual = actualRaw.toLowerCase().trim();
+  const target = targetRaw.toLowerCase().trim();
+
+  if (actual === target) return true;
+  // Allow a trailing word suffix like "Over 2.5 Goals"
+  if (actual.startsWith(target + ' ')) return true;
+  if (actual.endsWith(' ' + target)) return true;
   return false;
 }

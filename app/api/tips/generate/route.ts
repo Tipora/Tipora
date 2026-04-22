@@ -43,16 +43,17 @@ const PLAYER_MARKETS: StatType[] = [
   'score_or_assist',
 ];
 
-// Odds market name mappings for API-Football
+// Odds market name mappings — use EXACT API-Football market names
+// (odds.ts looks them up in MARKET_ALIASES for known variants)
 const ODDS_MAP: Partial<Record<StatType, { market: string; selection: string }>> = {
-  over_2_5_goals: { market: 'Over/Under', selection: 'Over 2.5' },
-  over_1_5_goals: { market: 'Over/Under', selection: 'Over 1.5' },
-  over_3_5_goals: { market: 'Over/Under', selection: 'Over 3.5' },
-  btts: { market: 'Both Teams Score', selection: 'Yes' },
-  clean_sheet: { market: 'Clean Sheet', selection: 'Yes' },
-  home_win: { market: 'Match Winner', selection: 'Home' },
-  away_win: { market: 'Match Winner', selection: 'Away' },
-  draw: { market: 'Match Winner', selection: 'Draw' },
+  over_2_5_goals: { market: 'Goals Over/Under', selection: 'Over 2.5' },
+  over_1_5_goals: { market: 'Goals Over/Under', selection: 'Over 1.5' },
+  over_3_5_goals: { market: 'Goals Over/Under', selection: 'Over 3.5' },
+  btts:          { market: 'Both Teams Score',  selection: 'Yes' },
+  home_win:      { market: 'Match Winner',      selection: 'Home' },
+  away_win:      { market: 'Match Winner',      selection: 'Away' },
+  draw:          { market: 'Match Winner',      selection: 'Draw' },
+  // Clean sheet is side-specific in API-Football — handled specially below
 };
 
 // Player markets with potentially available odds in API-Football
@@ -92,6 +93,14 @@ export async function POST(req: Request) {
   );
 
   const date = todayUTC();
+
+  // Delete previously generated PENDING tips for today so a re-run doesn't duplicate.
+  // Settled tips (won/lost/void) are preserved — only unsettled pending ones are cleared.
+  await supabase
+    .from('tips')
+    .delete()
+    .eq('tip_date', date)
+    .eq('status', 'pending');
 
   // Get upcoming not-started fixtures (today + next 6 days)
   // Tips are published ahead of kickoff — 7-day window catches weekend games.
