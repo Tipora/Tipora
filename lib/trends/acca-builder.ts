@@ -42,6 +42,10 @@ export async function buildGameAcca(
   const usedFixtures = new Set<number>();
   const marketCounts = new Map<string, number>();
 
+  // Cap combined odds at 15.0 so we don't build longshot accas like 600/1
+  const MAX_COMBINED_ODDS = 15.0;
+  let runningOdds = 1.0;
+
   for (const tip of tips as Tip[]) {
     if (legs.length >= 5) break;
     if (usedFixtures.has(tip.fixture_id)) continue;
@@ -50,9 +54,14 @@ export async function buildGameAcca(
     const count = marketCounts.get(tip.market_type) ?? 0;
     if (count >= 2) continue;
 
+    // Skip if this leg would push combined odds past cap
+    const newOdds = runningOdds * tip.odds;
+    if (legs.length >= 3 && newOdds > MAX_COMBINED_ODDS) continue;
+
     legs.push(tip);
     usedFixtures.add(tip.fixture_id);
     marketCounts.set(tip.market_type, count + 1);
+    runningOdds = newOdds;
   }
 
   if (legs.length < 3) return null;
@@ -92,6 +101,10 @@ export async function buildWeekendAcca(
   const marketTypes = new Set<string>();
   const marketCounts = new Map<string, number>();
 
+  // Weekend acca can reach a slightly higher cap (6 legs vs 5)
+  const MAX_COMBINED_ODDS = 25.0;
+  let runningOdds = 1.0;
+
   for (const tip of tips as Tip[]) {
     if (legs.length >= 6) break;
     if (usedFixtures.has(tip.fixture_id)) continue;
@@ -100,10 +113,14 @@ export async function buildWeekendAcca(
     const count = marketCounts.get(tip.market_type) ?? 0;
     if (count >= 2) continue;
 
+    const newOdds = runningOdds * tip.odds;
+    if (legs.length >= 4 && newOdds > MAX_COMBINED_ODDS) continue;
+
     legs.push(tip);
     usedFixtures.add(tip.fixture_id);
     marketTypes.add(tip.market_type);
     marketCounts.set(tip.market_type, count + 1);
+    runningOdds = newOdds;
   }
 
   if (legs.length < 4) return null;

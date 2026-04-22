@@ -79,6 +79,18 @@ export async function fetchFixturesByDate(date: string, leagueId: number): Promi
   });
 }
 
+/**
+ * Pull an entire season of fixtures for a league in a single API call.
+ * Returns ~300-400 fixtures for a typical European top league.
+ * Way more efficient than fetching day-by-day for deep history.
+ */
+export async function fetchFixturesBySeason(leagueId: number, season?: number): Promise<APIFixtureResponse[]> {
+  return apiFetch<APIFixtureResponse>('/fixtures', {
+    league: String(leagueId),
+    season: String(season ?? getCurrentSeason()),
+  });
+}
+
 export function mapFixture(f: APIFixtureResponse): InsertFixture & { first_goal_team?: string; first_goal_minute?: number; first_goal_player?: string; referee_name?: string | null } {
   // Extract first goal from events
   let firstGoalTeam: string | undefined;
